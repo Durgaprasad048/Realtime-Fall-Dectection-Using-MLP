@@ -1,0 +1,62 @@
+buildscript {
+    ext.kotlin_version = '1.8.22'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+def assignNamespaceFromManifest = { project ->
+    def androidExt = project.extensions.findByName("android")
+    if (androidExt == null || !androidExt.hasProperty("namespace")) {
+        return
+    }
+
+    def currentNamespace = androidExt.namespace
+    if (currentNamespace != null && currentNamespace.toString().trim()) {
+        return
+    }
+
+    def manifestFile = project.file("src/main/AndroidManifest.xml")
+    if (!manifestFile.exists()) {
+        return
+    }
+
+    def manifest = new XmlSlurper(false, false).parse(manifestFile)
+    def manifestPackage = manifest.@package?.text()
+    if (manifestPackage) {
+        androidExt.namespace = manifestPackage
+    }
+}
+
+subprojects { project ->
+    project.plugins.withId("com.android.application") {
+        assignNamespaceFromManifest(project)
+    }
+    project.plugins.withId("com.android.library") {
+        assignNamespaceFromManifest(project)
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
